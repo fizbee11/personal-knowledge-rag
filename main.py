@@ -4,6 +4,7 @@ from langchain_community.document_loaders import (
     UnstructuredMarkdownLoader,
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_ollama import OllamaEmbeddings
 
 m_loader_kwargs = {"autodetect_encoding": True}
 
@@ -24,3 +25,6 @@ text_splitter = RecursiveCharacterTextSplitter(
 all_splits = text_splitter.split_documents(docs)
 
 print(f"Split blog post into {len(all_splits)} sub-documents.")
+
+
+embeddings = OllamaEmbeddings(model="nomic-embed-text")

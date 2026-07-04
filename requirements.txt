@@ -8,5 +8,5 @@ langchain-chroms
 ollama
 langchain
 langchain-text-splitters
-
+lanchain-qdrant
 
