@@ -9,4 +9,5 @@ ollama
 langchain
 langchain-text-splitters
 lanchain-qdrant
+langchain_tools
 
