@@ -1,39 +1,26 @@
-from langchain_community.tools import ShellTool
-from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
 from langchain_community.document_loaders import (
     DirectoryLoader,
     UnstructuredMarkdownLoader,
 )
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_chat_models import ChatOllama
-from langchain.agents import create_json_chat_agent, AgentExecutor
-from langchain import hub
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# 1. Setup Local LLM (Ollama)
-llm = ChatOllama(model="llama3.1", temperature=0)
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+m_loader_kwargs = {"autodetect_encoding": True}
 
-# 2. Pre-built RAG: Load and Index your Markdown files in 3 lines
 loader = DirectoryLoader(
-    "./my_docs", glob="**/*.md", loader_cls=UnstructuredMarkdownLoader
+    path="./my_docs",
+    glob="**/*.md",
+    loader_cls=UnstructuredMarkdownLoader,
+    loader_kwargs=m_loader_kwargs,
 )
 docs = loader.load()
-vector_store = Chroma.from_documents(docs, embeddings)
-retriever_tool = vector_store.as_retriever()  # This is now a tool for the agent!
 
-# 3. Pre-built Action: Grab LangChain's built-in Shell Tool
-shell_tool = ShellTool()
 
-# 4. Combine into an Agent
-tools = [retriever_tool, shell_tool]
-prompt = hub.pull("hwchase17/react-json")  # Pre-built reasoning prompt template
-
-agent = create_json_chat_agent(llm, tools, prompt)
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-
-# 5. Run it!
-agent_executor.invoke(
-    {
-        "input": "Look at my deployment docs and check if the docker container is running."
-    }
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,  # chunk size (characters)
+    chunk_overlap=200,  # chunk overlap (characters)
+    add_start_index=True,  # track index in original document
 )
+all_splits = text_splitter.split_documents(docs)
+
+print(f"Split blog post into {len(all_splits)} sub-documents.")
