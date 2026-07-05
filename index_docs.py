@@ -87,7 +87,7 @@ def get_markdown_files() -> list[Path]:
     for md_path in MD_PATHS:
         if md_path.exists():
             files = list(md_path.expanduser().rglob("*.md"))
-            print(files)
+            # print(files)
             all_files.extend(f for f in files if not EXCLUDE_DIRS.intersection(f.parts))
     return all_files
 
