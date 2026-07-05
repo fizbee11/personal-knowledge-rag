@@ -37,7 +37,7 @@ config = load_config()
 
 # Markdown paths from config (comma-separated)
 MD_PATHS = [
-    Path(p.strip()) for p in config.get("markdown", "paths", fallback="./my_docs").split(",")
+    Path(p.strip()).expanduser() for p in config.get("markdown", "paths", fallback="./my_docs").split(",")
 ]
 MANIFEST_PATH = Path(config.get("indexing", "manifest_path", fallback="./md_manifest.json"))
 COLLECTION_NAME = config.get("indexing", "collection_name", fallback="my_docs")
@@ -86,7 +86,8 @@ def get_markdown_files() -> list[Path]:
     all_files = []
     for md_path in MD_PATHS:
         if md_path.exists():
-            files = list(md_path.rglob("*.md"))
+            files = list(md_path.expanduser().rglob("*.md"))
+            print(files)
             all_files.extend(f for f in files if not EXCLUDE_DIRS.intersection(f.parts))
     return all_files
 
