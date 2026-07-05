@@ -35,9 +35,10 @@ def retrieve_context(query: str):
 
 
 llm = ChatOllama(
-    model="qwen3:14b",
+    model="freehuntx/qwen3-coder:8b",
     temperature=0,
     validate_model_on_init=False,
+    reasoning=False,
     num_ctx=4096,
     base_url="http://zephyrus-1.tailac30a.ts.net:11434",
 )
