@@ -10,6 +10,7 @@ skipped entirely.
 import hashlib
 import json
 import uuid
+from configparser import ConfigParser
 from pathlib import Path
 
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
@@ -27,15 +28,27 @@ from qdrant_client.models import (
 )
 
 # ---- Config ----------------------------------------------------------
-MD_PATH = Path("./my_docs")  # your Obsidian vault root
-MANIFEST_PATH = Path("./md_manifest.json")
-COLLECTION_NAME = "my_docs"
-QDRANT_URL = "http://localhost:6333"
-OLLAMA_BASE_URL = "http://zephyrus-1.tailac30a.ts.net:11434"
-EMBEDDING_MODEL = "nomic-embed-text"
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
-EXCLUDE_DIRS = {".obsidian"}
+def load_config() -> ConfigParser:
+    config = ConfigParser()
+    config.read("config.cfg")
+    return config
+
+config = load_config()
+
+# Markdown paths from config (comma-separated)
+MD_PATHS = [
+    Path(p.strip()) for p in config.get("markdown", "paths", fallback="./my_docs").split(",")
+]
+MANIFEST_PATH = Path(config.get("indexing", "manifest_path", fallback="./md_manifest.json"))
+COLLECTION_NAME = config.get("indexing", "collection_name", fallback="my_docs")
+QDRANT_URL = config.get("qdrant", "url", fallback="http://localhost:6333")
+OLLAMA_BASE_URL = config.get("ollama", "base_url", fallback="http://localhost:11434")
+EMBEDDING_MODEL = config.get("ollama", "embedding_model", fallback="nomic-embed-text")
+CHUNK_SIZE = config.getint("indexing", "chunk_size", fallback=1000)
+CHUNK_OVERLAP = config.getint("indexing", "chunk_overlap", fallback=200)
+EXCLUDE_DIRS = set(
+    d.strip() for d in config.get("indexing", "exclude_dirs", fallback=".obsidian").split(",")
+)
 # -----------------------------------------------------------------------
 
 
@@ -69,8 +82,13 @@ def delete_chunks_for_source(client: QdrantClient, source: str) -> None:
 
 
 def get_markdown_files() -> list[Path]:
-    files = list(MD_PATH.rglob("*.md"))
-    return [f for f in files if not EXCLUDE_DIRS.intersection(f.parts)]
+    """Recursively find all markdown files in configured paths."""
+    all_files = []
+    for md_path in MD_PATHS:
+        if md_path.exists():
+            files = list(md_path.rglob("*.md"))
+            all_files.extend(f for f in files if not EXCLUDE_DIRS.intersection(f.parts))
+    return all_files
 
 
 def index_vault() -> None:
