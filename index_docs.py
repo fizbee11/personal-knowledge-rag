@@ -27,6 +27,7 @@ from qdrant_client.models import (
     VectorParams,
 )
 import frontmatter
+import re
 from datetime import datetime
 
 
@@ -79,24 +80,6 @@ def deterministic_id(source: str, chunk_index: int) -> str:
     the same chunk overwrites the existing point instead of duplicating it."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}::{chunk_index}"))
 
-
-def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
-    post = frontmatter.load(filepath)
-    stat = Path(filepath).stat()
-
-    return {
-        "source_path": filepath,
-        "title": post.metadata.get("title", Path(filepath).stem),
-        "tags": post.metadata.get("tags", []),
-        "heading_path": " > ".join(
-            heading_path
-        ),  # e.g. "Project X > Meeting Notes > Action Items"
-        "created": post.metadata.get("created")
-        or datetime.fromtimestamp(stat.st_ctime).isoformat(),
-        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-        #        "wikilinks": extract_wikilinks(post.content),  # [[Note Name]] -> list
-        "char_count": len(chunk_text),
-    }
 
 
 def delete_chunks_for_source(client: QdrantClient, source: str) -> None:
@@ -193,6 +176,7 @@ def index_vault() -> None:
 
             meta = extract_metadata(source, chunk.page_content, heading_path)
 
+            print(f"Meta Data is: {meta}")
             # merge existing metadata with the extracted metadata
             existing_meta = chunk.metadata or {}
             if isinstance(existing_meta, dict):
@@ -209,6 +193,48 @@ def index_vault() -> None:
 
     print("Indexing complete.")
 
+def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
+    post = frontmatter.load(filepath)
+    stat = Path(filepath).stat()
+
+    return {
+        "source_path": filepath,
+        "title": post.metadata.get("title", Path(filepath).stem),
+        "tags": post.metadata.get("tags", []),
+        "heading_path": " > ".join(
+            heading_path
+        ),  # e.g. "Project X > Meeting Notes > Action Items"
+        "created": post.metadata.get("created")
+        or datetime.fromtimestamp(stat.st_ctime).isoformat(),
+        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        #        "wikilinks": extract_wikilinks(post.content),  # [[Note Name]] -> list
+        "char_count": len(chunk_text),
+    }
+HEADING_PATTERN = re.compile(r'^(#{1,6})\s+(.+)$')
+
+def parse_markdown_with_headings(text: str):
+    """
+    Returns a list of (line_text, heading_path) tuples.
+    heading_path is a list like ["Project X", "Meeting Notes", "Action Items"]
+    reflecting the active H1 > H2 > H3... at that point in the document.
+    """
+    heading_stack = [None] * 6  # index 0 = H1, index 5 = H6
+    lines_with_context = []
+
+    for line in text.split("\n"):
+        match = HEADING_PATTERN.match(line)
+        if match:
+            level = len(match.group(1)) - 1  # 0-indexed
+            title = match.group(2).strip()
+            heading_stack[level] = title
+            # clear deeper levels — a new H2 resets any H3/H4/H5/H6 below it
+            for i in range(level + 1, 6):
+                heading_stack[i] = None
+
+        current_path = [h for h in heading_stack if h is not None]
+        lines_with_context.append((line, current_path.copy()))
+
+    return lines_with_context
 
 if __name__ == "__main__":
     index_vault()
