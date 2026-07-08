@@ -81,7 +81,6 @@ def deterministic_id(source: str, chunk_index: int) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}::{chunk_index}"))
 
 
-
 def delete_chunks_for_source(client: QdrantClient, source: str) -> None:
     client.delete(
         collection_name=COLLECTION_NAME,
@@ -193,6 +192,7 @@ def index_vault() -> None:
 
     print("Indexing complete.")
 
+
 def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
     post = frontmatter.load(filepath)
     stat = Path(filepath).stat()
@@ -210,7 +210,10 @@ def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
         #        "wikilinks": extract_wikilinks(post.content),  # [[Note Name]] -> list
         "char_count": len(chunk_text),
     }
-HEADING_PATTERN = re.compile(r'^(#{1,6})\s+(.+)$')
+
+
+HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$")
+
 
 def parse_markdown_with_headings(text: str):
     """
@@ -235,6 +238,7 @@ def parse_markdown_with_headings(text: str):
         lines_with_context.append((line, current_path.copy()))
 
     return lines_with_context
+
 
 if __name__ == "__main__":
     index_vault()
