@@ -26,6 +26,9 @@ from qdrant_client.models import (
     MatchValue,
     VectorParams,
 )
+import frontmatter
+from datetime import datetime
+
 
 # ---- Config ----------------------------------------------------------
 def load_config() -> ConfigParser:
@@ -33,21 +36,26 @@ def load_config() -> ConfigParser:
     config.read("config.cfg")
     return config
 
+
 config = load_config()
 
 # Markdown paths from config (comma-separated)
 MD_PATHS = [
-    Path(p.strip()).expanduser() for p in config.get("markdown", "paths", fallback="./my_docs").split(",")
+    Path(p.strip()).expanduser()
+    for p in config.get("markdown", "paths", fallback="./my_docs").split(",")
 ]
-MANIFEST_PATH = Path(config.get("indexing", "manifest_path", fallback="./md_manifest.json"))
+MANIFEST_PATH = Path(
+    config.get("indexing", "manifest_path", fallback="./md_manifest.json")
+)
 COLLECTION_NAME = config.get("indexing", "collection_name", fallback="my_docs")
 QDRANT_URL = config.get("qdrant", "url", fallback="http://localhost:6333")
 OLLAMA_BASE_URL = config.get("ollama", "base_url", fallback="http://localhost:11434")
-EMBEDDING_MODEL = config.get("ollama", "embedding_model", fallback="nomic-embed-text")
+EMBEDDING_MODEL = config.get("ollama", "embedding_model", fallback="qwen3-embedding")
 CHUNK_SIZE = config.getint("indexing", "chunk_size", fallback=1000)
 CHUNK_OVERLAP = config.getint("indexing", "chunk_overlap", fallback=200)
 EXCLUDE_DIRS = set(
-    d.strip() for d in config.get("indexing", "exclude_dirs", fallback=".obsidian").split(",")
+    d.strip()
+    for d in config.get("indexing", "exclude_dirs", fallback=".obsidian").split(",")
 )
 # -----------------------------------------------------------------------
 
@@ -70,6 +78,25 @@ def deterministic_id(source: str, chunk_index: int) -> str:
     """Stable UUID derived from file path + chunk index, so re-embedding
     the same chunk overwrites the existing point instead of duplicating it."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}::{chunk_index}"))
+
+
+def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
+    post = frontmatter.load(filepath)
+    stat = Path(filepath).stat()
+
+    return {
+        "source_path": filepath,
+        "title": post.metadata.get("title", Path(filepath).stem),
+        "tags": post.metadata.get("tags", []),
+        "heading_path": " > ".join(
+            heading_path
+        ),  # e.g. "Project X > Meeting Notes > Action Items"
+        "created": post.metadata.get("created")
+        or datetime.fromtimestamp(stat.st_ctime).isoformat(),
+        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        #        "wikilinks": extract_wikilinks(post.content),  # [[Note Name]] -> list
+        "char_count": len(chunk_text),
+    }
 
 
 def delete_chunks_for_source(client: QdrantClient, source: str) -> None:
@@ -150,11 +177,29 @@ def index_vault() -> None:
 
         loader = UnstructuredMarkdownLoader(str(f), autodetect_encoding=True)
         docs = loader.load()
+        print(f"--------- Indexing file: {docs} ------")
         splits = text_splitter.split_documents(docs)
 
         if not splits:
             print("  -> no content extracted, skipping")
             continue
+
+        # Attach metadata to each chunk before adding to the vector store
+        for i, chunk in enumerate(splits):
+            heading_path = []
+            if isinstance(chunk.metadata, dict):
+                # some loaders may include heading info in chunk.metadata
+                heading_path = chunk.metadata.get("heading", []) or []
+
+            meta = extract_metadata(source, chunk.page_content, heading_path)
+
+            # merge existing metadata with the extracted metadata
+            existing_meta = chunk.metadata or {}
+            if isinstance(existing_meta, dict):
+                existing_meta.update(meta)
+                chunk.metadata = existing_meta
+            else:
+                chunk.metadata = meta
 
         ids = [deterministic_id(source, i) for i in range(len(splits))]
         vector_store.add_documents(documents=splits, ids=ids)

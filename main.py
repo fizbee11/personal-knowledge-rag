@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 
 embeddings = OllamaEmbeddings(
-    model="nomic-embed-text",
+    model="qwen3-embedding",
     validate_model_on_init=True,
     base_url="http://zephyrus-1.tailac30a.ts.net:11434",
 )
@@ -31,7 +31,7 @@ vector_store = QdrantVectorStore(
 )
 
 llm = ChatOllama(
-    model="qwen3:14b", #"freehuntx/qwen3-coder:8b",
+    model="qwen3-vl:8b-instruct", #"freehuntx/qwen3-coder:8b",
     temperature=0,
     validate_model_on_init=False,
     reasoning=False,
