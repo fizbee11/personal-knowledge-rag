@@ -151,7 +151,7 @@ def index_vault() -> None:
 
     # for n in nodes:
     for f in changed_or_new:
-        # documents object for llama_index
+        # Load one document as seqence [f]
         document = SimpleDirectoryReader(
             input_files=[f], required_exts=[".md"]
         ).load_data()
@@ -161,34 +161,38 @@ def index_vault() -> None:
         ).get_nodes_from_documents(document)
 
         splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=100)
-        chunked_nodes = splitter(
-            nodes
-        )  # instead of splitter.get_nodes_from_documents(nodes)
 
-        # removing nodes with only whitespaces(empty)
+        chunked_nodes = splitter(nodes)
+        # remove chunks with only whitespace or emtpy
         chunked_nodes = [node for node in chunked_nodes if node.text.strip()]
-        texts = [node.text for node in chunked_nodes]
-        metadatas = [node.metadata for node in chunked_nodes]
 
-        ids = [deterministic_id(str(f), i) for i in range(len(chunked_nodes))]
+        # delete old chunks for this source before re-adding, so stale
+        # trailing chunks from a previous longer version don't linger
+        delete_chunks_for_source(client, str(f))
+
+        # List of all Texts []
+        texts = [node.text for node in chunked_nodes]
+        # List of all metadatas []
+        metadatas = []
+
+        for node in chunked_nodes:
+            extra = extract_metadata(str(f), node.text)
+            merged = {**node.metadata, **extra, "source": str(f)}
+            metadatas.append(merged)
         print(
-            f"Text: {texts}, ID: {ids}, Metadats: {metadatas}, Length of Chunked Nodes: {len(chunked_nodes)}, Length of splits: {len(texts)}"
+            f"\nText: {texts}------, \n------ID: {ids}-----, \n----Metadatas: {metadatas}----"
         )
+        ids = [deterministic_id(str(f), i) for i in range(len(chunked_nodes))]
         vector_store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
 
-        # vector_store.add_documents(documents=text, ids=ids)
-
     save_manifest(current_files)
-
     print("Indexing complete.")
 
 
-def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
+def extract_metadata(filepath: str, chunk_text: str):
     post = frontmatter.load(filepath)
-    stat = Path(filepath).stat()
 
     return {
-        "source_path": filepath,
         "title": post.metadata.get("title", Path(filepath).stem),
         "tags": post.metadata.get("tags", []),
         #        "wikilinks": extract_wikilinks(post.content),  # [[Note Name]] -> list
