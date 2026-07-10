@@ -14,6 +14,7 @@ from configparser import ConfigParser
 from pathlib import Path
 
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
+from langchain_core import vectorstores
 from langchain_ollama import OllamaEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -29,6 +30,10 @@ from qdrant_client.models import (
 import frontmatter
 import re
 from datetime import datetime
+
+from llama_index.core.node_parser import MarkdownNodeParser, SimpleNodeParser
+from llama_index.core import SimpleDirectoryReader
+from llama_index.core.text_splitter import TokenTextSplitter
 
 
 # ---- Config ----------------------------------------------------------
@@ -122,12 +127,6 @@ def index_vault() -> None:
         embedding=embeddings,
     )
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        add_start_index=True,
-    )
-
     manifest = load_manifest()
     current_files: dict[str, str] = {}
     changed_or_new: list[Path] = []
@@ -148,45 +147,36 @@ def index_vault() -> None:
     for source in deleted_sources:
         print(f"Removing deleted file from index: {source}")
         delete_chunks_for_source(client, source)
+        # Load only changed files to index
 
+    # for n in nodes:
     for f in changed_or_new:
-        source = str(f)
-        print(f"Indexing (new/changed): {source}")
+        # documents object for llama_index
+        document = SimpleDirectoryReader(
+            input_files=[f], required_exts=[".md"]
+        ).load_data()
 
-        # Clear any existing chunks for this file first, in case the file
-        # shrank and now produces fewer chunks than before.
-        delete_chunks_for_source(client, source)
+        nodes = MarkdownNodeParser(
+            include_metadata=True, include_prev_next_rel=True
+        ).get_nodes_from_documents(document)
 
-        loader = UnstructuredMarkdownLoader(str(f), autodetect_encoding=True)
-        docs = loader.load()
-        print(f"--------- Indexing file: {docs} ------")
-        splits = text_splitter.split_documents(docs)
+        splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=100)
+        chunked_nodes = splitter(
+            nodes
+        )  # instead of splitter.get_nodes_from_documents(nodes)
 
-        if not splits:
-            print("  -> no content extracted, skipping")
-            continue
+        # removing nodes with only whitespaces(empty)
+        chunked_nodes = [node for node in chunked_nodes if node.text.strip()]
+        texts = [node.text for node in chunked_nodes]
+        metadatas = [node.metadata for node in chunked_nodes]
 
-        # Attach metadata to each chunk before adding to the vector store
-        for i, chunk in enumerate(splits):
-            heading_path = []
-            if isinstance(chunk.metadata, dict):
-                # some loaders may include heading info in chunk.metadata
-                heading_path = chunk.metadata.get("heading", []) or []
+        ids = [deterministic_id(str(f), i) for i in range(len(chunked_nodes))]
+        print(
+            f"Text: {texts}, ID: {ids}, Metadats: {metadatas}, Length of Chunked Nodes: {len(chunked_nodes)}, Length of splits: {len(texts)}"
+        )
+        vector_store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
 
-            meta = extract_metadata(source, chunk.page_content, heading_path)
-
-            print(f"Meta Data is: {meta}")
-            # merge existing metadata with the extracted metadata
-            existing_meta = chunk.metadata or {}
-            if isinstance(existing_meta, dict):
-                existing_meta.update(meta)
-                chunk.metadata = existing_meta
-            else:
-                chunk.metadata = meta
-
-        ids = [deterministic_id(source, i) for i in range(len(splits))]
-        vector_store.add_documents(documents=splits, ids=ids)
-        print(f"  -> {len(splits)} chunks")
+        # vector_store.add_documents(documents=text, ids=ids)
 
     save_manifest(current_files)
 
@@ -201,43 +191,9 @@ def extract_metadata(filepath: str, chunk_text: str, heading_path: list[str]):
         "source_path": filepath,
         "title": post.metadata.get("title", Path(filepath).stem),
         "tags": post.metadata.get("tags", []),
-        "heading_path": " > ".join(
-            heading_path
-        ),  # e.g. "Project X > Meeting Notes > Action Items"
-        "created": post.metadata.get("created")
-        or datetime.fromtimestamp(stat.st_ctime).isoformat(),
-        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         #        "wikilinks": extract_wikilinks(post.content),  # [[Note Name]] -> list
         "char_count": len(chunk_text),
     }
-
-
-HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$")
-
-
-def parse_markdown_with_headings(text: str):
-    """
-    Returns a list of (line_text, heading_path) tuples.
-    heading_path is a list like ["Project X", "Meeting Notes", "Action Items"]
-    reflecting the active H1 > H2 > H3... at that point in the document.
-    """
-    heading_stack = [None] * 6  # index 0 = H1, index 5 = H6
-    lines_with_context = []
-
-    for line in text.split("\n"):
-        match = HEADING_PATTERN.match(line)
-        if match:
-            level = len(match.group(1)) - 1  # 0-indexed
-            title = match.group(2).strip()
-            heading_stack[level] = title
-            # clear deeper levels — a new H2 resets any H3/H4/H5/H6 below it
-            for i in range(level + 1, 6):
-                heading_stack[i] = None
-
-        current_path = [h for h in heading_stack if h is not None]
-        lines_with_context.append((line, current_path.copy()))
-
-    return lines_with_context
 
 
 if __name__ == "__main__":

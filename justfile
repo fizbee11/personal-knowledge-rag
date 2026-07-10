@@ -12,3 +12,7 @@ index:
 
 run:
   python3 main.py
+
+# source python venv
+source:
+  fish source /opt/python-venv/bin/activate.fish

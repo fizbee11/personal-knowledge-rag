@@ -20,7 +20,9 @@ dependencies = [
     "langchain-tools (>=0.1.34,<0.2.0)",
     "fastapi[standard] (>=0.139.0,<0.140.0)",
     "pydantic (>=2.13.4,<3.0.0)",
-    "python-frontmatter (>=1.3.0,<2.0.0)"
+    "python-frontmatter (>=1.3.0,<2.0.0)",
+    "llama-index-core (>=0.14.23,<0.15.0)",
+    "llama-index (>=0.14.23,<0.15.0)"
 ]
 
 
