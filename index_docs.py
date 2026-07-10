@@ -177,12 +177,12 @@ def index_vault() -> None:
 
         for node in chunked_nodes:
             extra = extract_metadata(str(f), node.text)
-            merged = {**node.metadata, **extra, "source": str(f)}
+            merged = {**node.metadata, **extra}
             metadatas.append(merged)
+        ids = [deterministic_id(str(f), i) for i in range(len(chunked_nodes))]
         print(
             f"\nText: {texts}------, \n------ID: {ids}-----, \n----Metadatas: {metadatas}----"
         )
-        ids = [deterministic_id(str(f), i) for i in range(len(chunked_nodes))]
         vector_store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
 
     save_manifest(current_files)
