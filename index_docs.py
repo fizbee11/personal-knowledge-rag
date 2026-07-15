@@ -13,11 +13,8 @@ import uuid
 from configparser import ConfigParser
 from pathlib import Path
 
-from langchain_community.document_loaders import UnstructuredMarkdownLoader
-from langchain_core import vectorstores
 from langchain_ollama import OllamaEmbeddings
 from langchain_qdrant import QdrantVectorStore
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -31,7 +28,7 @@ import frontmatter
 import re
 from datetime import datetime
 
-from llama_index.core.node_parser import MarkdownNodeParser, SimpleNodeParser
+from llama_index.core.node_parser import MarkdownNodeParser
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.text_splitter import TokenTextSplitter
 
