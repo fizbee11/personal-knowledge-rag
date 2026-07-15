@@ -1,6 +1,7 @@
 from langchain_core.documents import Document
-from langchain_ollama import OllamaEmbeddings, ChatOllama
-from langchain_openai import ChatOpenAI
+
+# from langchain_ollama import OllamaEmbeddings, ChatOllama
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.agents import create_agent
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
@@ -16,10 +17,12 @@ from collections.abc import Mapping
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
-embeddings = OllamaEmbeddings(
-    model="qwen3-embedding",
-    validate_model_on_init=True,
-    base_url="http://zephyrus-1.tailac30a.ts.net:11434",
+embeddings = OpenAIEmbeddings(
+    model="text-embedding-qwen3-embedding-8b",
+    base_url="http://zephyrus-1.tailac30a.ts.net:1234/v1",
+    api_key="lm-studio",  # LM Studio ignores the value but the field is required
+    tiktoken_enabled=False,  # forces raw string input instead of token-ID arrays
+    check_embedding_ctx_length=False,  # this check also assumes tiktoken/OpenAI-style tokenization
 )
 
 # Qdrant client
@@ -61,21 +64,6 @@ prompt = (
     "If the retrieved context does not contain the answer or is completely irrelevant, you MUST use your own internal knowledge and reasoning to fully answer the user's query. In this case, briefly note that the documents did not contain the info, then provide the answer."
 )
 agent = create_agent(model=llm, tools=tools, system_prompt=prompt)
-
-
-# NOTE: removed top-level agent invocation to avoid running the model at import time.
-def ask(query, agent):
-    inputs = {"messages": [{"role": "user", "content": query}]}
-    return agent.invoke(inputs)
-
-
-def ask_stream(query, agent):
-    inputs = {"messages": [{"role": "user", "content": query}]}
-    for stream_mode, chunk in agent.stream(inputs, stream_mode=["messages", "updates"]):
-        if stream_mode == "messages":
-            token, metadata = chunk
-            if token.content:
-                yield token.content
 
 
 def extract_content_from_payload(payload):
