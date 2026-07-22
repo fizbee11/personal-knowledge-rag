@@ -1,0 +1,4 @@
+# Dependencies (ignore all lock files, keep package.json)
+node_modules/
+*.lock
+

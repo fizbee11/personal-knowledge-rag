@@ -1,4 +1,13 @@
-/my_docs/
-md_manifest.json
+# Config with secrets
 config.cfg
-/__pycache__/
+
+# State files (generated, not committed)
+md_manifest.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Node packages (if any in root)
+node_modules/
