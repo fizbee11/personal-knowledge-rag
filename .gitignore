@@ -1,6 +1,7 @@
 # Config with secrets
 config.cfg
-
+/my_docs/
+test.py
 # State files (generated, not committed)
 md_manifest.json
 

@@ -1,0 +1,6 @@
+{
+  "name": "bash",
+  "description": "Bash agent for executing shell commands, file operations, and system tasks",
+  "type": "custom",
+  "model": "@anthropic/claude-3-5-sonnet-20240620"
+}
