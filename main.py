@@ -52,42 +52,32 @@ config = load_config()
 # Get selected mode - change ONE line to switch between servers!
 endpoint_mode = config.get("server", {}).get("endpoint_mode", "local")
 
-def get_value(section: str, key: str):
-    """Get config value based on endpoint_mode."""
-    section_data = config.get(section, {})
-    
-    if section in [f"{key}_local" for key in section_data.keys()] or endpoint_mode == "local":
-        # Check if this is a local section
-        base_section = section.replace("_local", "").replace("_remote", "")
-        return section_data.get(key)
-    
-    elif endpoint_mode == "remote":
-        # Check if we have a remote version of this section
-        remote_section = section.replace("_local", "_remote").replace("_remote", "_remote")
-        base_section = section.replace("_local", "").replace("_remote", "")
-        if f"{base_section}_remote" in config:
-            return config[f"{base_section}_remote"].get(key)
-    
-    raise ValueError(f"Missing config for {section}.{key} in mode '{endpoint_mode}'")
+
+def get_endpoint_value(key: str):
+    """Get value from local or remote section based on endpoint_mode."""
+    if endpoint_mode == "local":
+        return config[f"{key}_local"].get(key)
+    else:  # remote
+        return config[f"{key}_remote"].get(key)
 
 
-# MCP Server configuration from config.cfg
+# MCP Server - constant configuration (expandable for future servers)
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 mcp_config = {
     "paperless": {
-        "url": get_value("mcp_local if endpoint_mode == 'local' else 'mcp_remote'", "paperless_url"),  # type: ignore
-        "transport": get_value("mcp_local if endpoint_mode == 'local' else 'mcp_remote'", "paperless_transport"),  # type: ignore
+        "url": get_endpoint_value("mcp"),  # Will expand to support more MCP servers
+        "transport": get_endpoint_value("mcp"),
     }
 }
 mcp_client = MultiServerMCPClient(mcp_config)
 
 
-# LLM and Embeddings configuration
-llm_model = get_value(f"llm-studio_{endpoint_mode}", "llm_model")
-embedding_model = get_value(f"llm-studio_{endpoint_mode}", "embedding_model")
-llm_base_url = get_value(f"llm-studio_{endpoint_mode}", "base_url")
-api_key = get_value(f"llm-studio_{endpoint_mode}", "api_key")
+# LLM and Embeddings configuration (only these change between endpoints)
+llm_model = get_endpoint_value("llm-studio")
+embedding_model = get_endpoint_value("llm-studio")
+llm_base_url = get_endpoint_value("llm-studio")
+api_key = get_endpoint_value("llm-studio")
 
 embeddings = OpenAIEmbeddings(
     model=embedding_model,
@@ -104,11 +94,10 @@ llm = ChatOpenAI(
     base_url=llm_base_url,
 )
 
-# Qdrant configuration
-qdrant_url = get_value(f"qdrant_{endpoint_mode}", "url")
-client = QdrantClient(url=qdrant_url)
+# Qdrant configuration - constant for both endpoints
+client = QdrantClient(url=config["qdrant"])
 
-# Indexing configuration (shared settings)
+# Indexing configuration - constant for both endpoints  
 vector_store = QdrantVectorStore(
     client=client,
     collection_name=config["indexing"]["collection_name"],
