@@ -50,14 +50,14 @@ def load_config():
 
 config = load_config()
 
-# MCP Server (hardcoded, not in config yet)
+# MCP Server configuration from config.cfg
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 mcp_client = MultiServerMCPClient(
     {
         "paperless": {
-            "url": "http://100.100.144.3:5000",
-            "transport": "streamable_http",
+            "url": config["mcp"]["paperless_url"],
+            "transport": config["mcp"]["paperless_transport"],
         }
     }
 )
