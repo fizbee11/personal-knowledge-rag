@@ -24,6 +24,15 @@ from pydantic import BaseModel, SecretStr
 # MCP Server
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+mcp_client = MultiServerMCPClient(
+    {
+        "paperless": {
+            "url": "http://100.100.144.3:5000",
+            "transport": "streamable_http",
+        }
+    }
+)
+
 
 embeddings = OpenAIEmbeddings(
     model="text-embedding-qwen3-embedding-8b",
@@ -89,9 +98,7 @@ def extract_content_from_payload(payload: dict[str, Any] | str) -> str | None:
                 return content_val
     if "choices" in payload:
         try:
-            return (
-                cast(str | None, payload["choices"][0]["delta"].get("content")) or None
-            )
+            return cast(str | None, payload["choices"][0]["delta"].get("content")) or None
         except (KeyError, TypeError, AttributeError):
             pass
     return content_val
@@ -121,9 +128,7 @@ async def chat_completions(request: ChatCompletionRequest):
 
             def producer():
                 try:
-                    input_state: InputAgentState = {
-                        "messages": [{"role": "user", "content": user_query}]
-                    }
+                    input_state: InputAgentState = {"messages": [{"role": "user", "content": user_query}]}
                     for chunk in agent.stream(input_state, stream_mode="messages"):
                         q.put(chunk)
                 finally:
@@ -174,9 +179,7 @@ async def chat_completions(request: ChatCompletionRequest):
         else:
             content_val = str(response)
 
-        return {
-            "choices": [{"message": {"role": "assistant", "content": str(content_val)}}]
-        }
+        return {"choices": [{"message": {"role": "assistant", "content": str(content_val)}}]}
 
 
 @app.get("/v1/models")
