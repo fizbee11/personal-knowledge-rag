@@ -53,6 +53,45 @@ config = load_config()
 endpoint_mode = config.get("server", {}).get("endpoint_mode", "local")
 
 
+# Constants (same for both endpoints)
+qdrant_url = config["qdrant"]["url"]
+markdown_paths = config["markdown"]["paths"]
+collection_name = config["indexing"]["collection_name"]
+chunk_size = config["indexing"]["chunk_size"]
+chunk_overlap = config["indexing"]["chunk_overlap"]
+exclude_dirs = config["indexing"]["exclude_dirs"]
+
+
+# LLM Configuration (changes between endpoints)
+if endpoint_mode == "local":
+    llm_base_url = config["llm-studio_local"]["base_url"]
+    embedding_model = config["llm-studio_local"]["embedding_model"]
+    llm_model = config["llm-studio_local"]["llm_model"]
+    api_key = config["llm-studio_local"]["api_key"]
+else:  # remote
+    llm_base_url = config["llm-studio_remote"]["base_url"]
+    embedding_model = config["llm-studio_remote"]["embedding_model"]
+    llm_model = config["llm-studio_remote"]["llm_model"]
+    api_key = config["llm-studio_remote"]["api_key"]
+
+
+# MCP Configuration - constant, expandable for additional servers
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+if endpoint_mode == "local":
+    mcp_paperless_url = config["mcp_local"]["paperless_url"]
+else:  # remote
+    mcp_paperless_url = config["mcp_remote"]["paperless_url"]
+
+mcp_config = {
+    "paperless": {
+        "url": mcp_paperless_url,
+        "transport": config[f"mcp_{endpoint_mode}"]["paperless_transport"],
+    }
+}
+mcp_client = MultiServerMCPClient(mcp_config)
+
+
 def get_endpoint_value(key: str):
     """Get value from local or remote section based on endpoint_mode."""
     if endpoint_mode == "local":
@@ -61,24 +100,7 @@ def get_endpoint_value(key: str):
         return config[f"{key}_remote"].get(key)
 
 
-# MCP Server - constant configuration (expandable for future servers)
-from langchain_mcp_adapters.client import MultiServerMCPClient
-
-mcp_config = {
-    "paperless": {
-        "url": get_endpoint_value("mcp"),  # Will expand to support more MCP servers
-        "transport": get_endpoint_value("mcp"),
-    }
-}
-mcp_client = MultiServerMCPClient(mcp_config)
-
-
-# LLM and Embeddings configuration (only these change between endpoints)
-llm_model = get_endpoint_value("llm-studio")
-embedding_model = get_endpoint_value("llm-studio")
-llm_base_url = get_endpoint_value("llm-studio")
-api_key = get_endpoint_value("llm-studio")
-
+# LLM and Embeddings initialization
 embeddings = OpenAIEmbeddings(
     model=embedding_model,
     base_url=llm_base_url,
@@ -94,13 +116,11 @@ llm = ChatOpenAI(
     base_url=llm_base_url,
 )
 
-# Qdrant configuration - constant for both endpoints
-client = QdrantClient(url=config["qdrant"])
-
-# Indexing configuration - constant for both endpoints  
+# Qdrant and Indexing (constant for both endpoints)
+client = QdrantClient(url=qdrant_url)
 vector_store = QdrantVectorStore(
     client=client,
-    collection_name=config["indexing"]["collection_name"],
+    collection_name=collection_name,
     embedding=embeddings,
 )
 
