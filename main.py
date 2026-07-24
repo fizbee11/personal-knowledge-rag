@@ -18,10 +18,39 @@ import queue
 import json
 
 from collections.abc import Mapping
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 
 
-# MCP Server
+# Load configuration from config.cfg
+def load_config():
+    """Load settings from config.cfg file."""
+    config = {}
+    current_section = None
+    
+    with open("config.cfg", "r") as f:
+        for line in f:
+            line = line.strip()
+            # Skip empty lines and comments
+            if not line or line.startswith("#"):
+                continue
+            
+            # Section header
+            if line.startswith("[") and line.endswith("]"):
+                current_section = line[1:-1].lower()
+                config[current_section] = {}
+                continue
+            
+            # Key-value pair
+            if "=" in line and current_section:
+                key, value = line.split("=", 1)
+                config[current_section][key.strip()] = value.strip()
+    
+    return config
+
+
+config = load_config()
+
+# MCP Server (hardcoded, not in config yet)
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 mcp_client = MultiServerMCPClient(
@@ -35,26 +64,26 @@ mcp_client = MultiServerMCPClient(
 
 
 embeddings = OpenAIEmbeddings(
-    model="text-embedding-qwen3-embedding-8b",
-    base_url="http://zephyrus-1.tailac30a.ts.net:1234/v1",
-    api_key=SecretStr("lm-studio"),
+    model=config.get("llm-studio", {}).get("embedding_model", "qwen3-embedding"),
+    base_url=config["llm-studio"]["base_url"],
+    api_key=config["llm-studio"]["api_key"],
     tiktoken_enabled=False,
     check_embedding_ctx_length=False,
 )
 
-client = QdrantClient(url="http://localhost:6333")
+client = QdrantClient(url=config["qdrant"]["url"])
 
 vector_store = QdrantVectorStore(
     client=client,
-    collection_name="my_docs",
+    collection_name=config["indexing"]["collection_name"],
     embedding=embeddings,
 )
 
 llm = ChatOpenAI(
-    model="qwen/qwen3.5-9b",
+    model=config["llm-studio"]["llm_model"],
     temperature=0,
-    api_key=SecretStr("lm-studio"),
-    base_url="http://zephyrus-1.tailac30a.ts.net:1234/v1",
+    api_key=config["llm-studio"]["api_key"],
+    base_url=config["llm-studio"]["base_url"],
 )
 
 app = FastAPI()
