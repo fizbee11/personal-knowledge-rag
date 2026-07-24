@@ -22,3 +22,7 @@
 2. Reference `config.cfg` as a separate file to configure at runtime
 3. Store sensitive values in environment variables (e.g., `OLLAMA_BASE_URL`, `QDRANT_URL`)
 4. Use `.env` files that are gitignored
+
+
+## LSP, Check Files for errors or warnings:
+- For python files: `basedpyright {{file_name}}`, make sure you are in venv (source /opt/python-venv/bin/activate.fish)

@@ -63,6 +63,9 @@ mcp_client = MultiServerMCPClient(
 )
 
 
+# Enable/disable skills and agent features
+enable_skills = config.get("commands", {}).get("enable_skills", False)
+
 embeddings = OpenAIEmbeddings(
     model=config.get("llm-studio", {}).get("embedding_model", "qwen3-embedding"),
     base_url=config["llm-studio"]["base_url"],
