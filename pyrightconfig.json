@@ -1,0 +1,9 @@
+{
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownReturnType": false,
+  "reportAny": false,
+  "reportExplicitAny": false
+}
