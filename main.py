@@ -42,13 +42,7 @@ def load_config():
                 key, value = line.split("=", 1)
                 key = key.strip().lower()
                 value = value.strip()
-                
-                if key.endswith("_local"):
-                    config[current_section]["local"] = value
-                elif key.endswith("_remote"):
-                    config[current_section]["remote"] = value
-                else:
-                    config[current_section][key] = value
+                config[current_section][key] = value
     
     return config
 
@@ -62,16 +56,17 @@ def get_value(section: str, key: str):
     """Get config value based on endpoint_mode."""
     section_data = config.get(section, {})
     
-    if endpoint_mode == "local":
-        # Try _local suffix first, then bare key
-        for k in [f"{key}_local", key]:
-            if k in section_data:
-                return section_data[k]
-    else:  # remote mode
-        # Try _remote suffix first, then bare key
-        for k in [f"{key}_remote", key]:
-            if k in section_data:
-                return section_data[k]
+    if section in [f"{key}_local" for key in section_data.keys()] or endpoint_mode == "local":
+        # Check if this is a local section
+        base_section = section.replace("_local", "").replace("_remote", "")
+        return section_data.get(key)
+    
+    elif endpoint_mode == "remote":
+        # Check if we have a remote version of this section
+        remote_section = section.replace("_local", "_remote").replace("_remote", "_remote")
+        base_section = section.replace("_local", "").replace("_remote", "")
+        if f"{base_section}_remote" in config:
+            return config[f"{base_section}_remote"].get(key)
     
     raise ValueError(f"Missing config for {section}.{key} in mode '{endpoint_mode}'")
 
@@ -81,18 +76,18 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 mcp_config = {
     "paperless": {
-        "url": get_value("mcp", "paperless_url"),
-        "transport": get_value("mcp", "paperless_transport"),
+        "url": get_value("mcp_local if endpoint_mode == 'local' else 'mcp_remote'", "paperless_url"),  # type: ignore
+        "transport": get_value("mcp_local if endpoint_mode == 'local' else 'mcp_remote'", "paperless_transport"),  # type: ignore
     }
 }
 mcp_client = MultiServerMCPClient(mcp_config)
 
 
 # LLM and Embeddings configuration
-llm_model = get_value("llm-studio", "llm_model")
-embedding_model = get_value("llm-studio", "embedding_model")
-llm_base_url = get_value("llm-studio", "base_url")
-api_key = get_value("llm-studio", "api_key")
+llm_model = get_value(f"llm-studio_{endpoint_mode}", "llm_model")
+embedding_model = get_value(f"llm-studio_{endpoint_mode}", "embedding_model")
+llm_base_url = get_value(f"llm-studio_{endpoint_mode}", "base_url")
+api_key = get_value(f"llm-studio_{endpoint_mode}", "api_key")
 
 embeddings = OpenAIEmbeddings(
     model=embedding_model,
@@ -110,13 +105,13 @@ llm = ChatOpenAI(
 )
 
 # Qdrant configuration
-qdrant_url = get_value("qdrant", "url")
+qdrant_url = get_value(f"qdrant_{endpoint_mode}", "url")
 client = QdrantClient(url=qdrant_url)
 
-# Indexing configuration
+# Indexing configuration (shared settings)
 vector_store = QdrantVectorStore(
     client=client,
-    collection_name=get_value("indexing", "collection_name"),
+    collection_name=config["indexing"]["collection_name"],
     embedding=embeddings,
 )
 
